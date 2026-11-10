@@ -1,0 +1,290 @@
+from machine import Pin
+
+puntos = {
+    "nosotros": 0,
+    "ellos": 0
+}
+
+def webpage():
+    html = f'''<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anotador de Truco</title>
+    <style>
+        body {{
+            background-color: #11381b;
+            background-image: radial-gradient(circle at center, #1b4d29 0%, #11381b 100%);
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 30px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            position: relative;
+        }}
+        h1 {{
+            color: #d4af37;
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: lowercase;
+            margin: 0;
+        }}
+        .board {{
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            width: 100%;
+            max-width: 800px;
+            margin: auto;
+        }}
+        .team {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }}
+        .team-title {{
+            font-size: 11px;
+            color: #94a3b8;
+            letter-spacing: 1.5px;
+            text-transform: lowercase;
+            margin-bottom: 10px;
+        }}
+        .score {{
+            font-size: 72px;
+            font-weight: 300;
+            color: #f8fafc;
+            margin: 10px 0;
+            font-family: "Times New Roman", Times, serif;
+        }}
+        .btn-group {{
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }}
+        .btn {{
+            background-color: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        .btn.add {{
+            background-color: #d4af37;
+            color: #11381b;
+            font-weight: bold;
+            border: none;
+        }}
+        .btn.falta {{
+            background-color: #b8860b;
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            width: 100%;
+            margin-top: 6px;
+        }}
+        .btn:hover {{
+            opacity: 0.9;
+        }}
+        .btn-reset {{
+            background-color: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+        }}
+        #modal-ganador {{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }}
+        .modal-content {{
+            background: #1b4d29;
+            border: 2px solid #d4af37;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+        }}
+        .modal-content h2 {{
+            color: #d4af37;
+            font-size: 32px;
+            margin-top: 0;
+        }}
+    </style>
+</head>
+<body>
+    <h1>anotador de truco</h1>
+    
+    <div class="board">
+        <!-- NOSOTROS -->
+        <div class="team">
+            <div class="team-title">nosotros</div>
+            <div class="score" id="score-nosotros">0</div>
+            <div class="btn-group">
+                <button class="btn" onclick="modificar('nosotros', -1)">-1</button>
+                <button class="btn add" onclick="modificar('nosotros', 1)">base / no se quiere</button>
+                <button class="btn add" onclick="modificar('nosotros', 2)">envido / truco</button>
+                <button class="btn add" onclick="modificar('nosotros', 3)">retruco / real envido</button>
+                <button class="btn add" onclick="modificar('nosotros', 4)">vale 4</button>
+            </div>
+            <button class="btn falta" onclick="faltaEnvido('nosotros')">falta envido</button>
+        </div>
+        
+        <!-- ELLOS -->
+        <div class="team">
+            <div class="team-title">ellos</div>
+            <div class="score" id="score-ellos">0</div>
+            <div class="btn-group">
+                <button class="btn" onclick="modificar('ellos', -1)">-1</button>
+                <button class="btn add" onclick="modificar('ellos', 1)">base / no se quiere</button>
+                <button class="btn add" onclick="modificar('ellos', 2)">envido / truco</button>
+                <button class="btn add" onclick="modificar('ellos', 3)">retruco / real envido</button>
+                <button class="btn add" onclick="modificar('ellos', 4)">vale 4</button>
+            </div>
+            <button class="btn falta" onclick="faltaEnvido('ellos')">falta envido</button>
+        </div>
+    </div>
+    
+    <button class="btn-reset" onclick="reiniciar()">juego nuevo</button>
+
+    <!-- Modal de Ganador -->
+    <div id="modal-ganador">
+        <div class="modal-content">
+            <h2 id="ganador-texto">¡Hay Ganador!</h2>
+            <button class="btn-reset" onclick="reiniciar()">Aceptar / Revancha</button>
+        </div>
+    </div>
+
+    <script>
+        let nos = 0;
+        let ell = 0;
+        const meta = 30;
+
+        function modificar(equipo, cantidad) {{
+            if (equipo === 'nosotros') {{
+                nos = Math.min(meta, Math.max(0, nos + cantidad));
+                document.getElementById('score-nosotros').innerText = nos;
+            }} else {{
+                ell = Math.min(meta, Math.max(0, ell + cantidad));
+                document.getElementById('score-ellos').innerText = ell;
+            }}
+            verificarGanador();
+            enviarServidor();
+        }}
+
+        function faltaEnvido(equipo) {{
+            if (equipo === 'nosotros') {{
+                nos = meta;
+                document.getElementById('score-nosotros').innerText = nos;
+            }} else {{
+                ell = meta;
+                document.getElementById('score-ellos').innerText = ell;
+            }}
+            verificarGanador();
+            enviarServidor();
+        }}
+
+        function verificarGanador() {{
+            if (nos >= meta) {{
+                document.getElementById('ganador-texto').innerText = "¡Ganó NOSOTROS!";
+                document.getElementById('modal-ganador').style.display = 'flex';
+            }} else if (ell >= meta) {{
+                document.getElementById('ganador-texto').innerText = "¡Ganó ELLOS!";
+                document.getElementById('modal-ganador').style.display = 'flex';
+            }}
+        }}
+
+        function reiniciar() {{
+            nos = 0;
+            ell = 0;
+            document.getElementById('score-nosotros').innerText = nos;
+            document.getElementById('score-ellos').innerText = ell;
+            document.getElementById('modal-ganador').style.display = 'none';
+            enviarServidor();
+        }}
+
+        function enviarServidor() {{
+            if (window.location.protocol.startsWith('http')) {{
+                const url = '/update?nosotros=' + nos + '&ellos=' + ell;
+                fetch(url).catch(err => console.log('Sin conexión con ESP32'));
+            }}
+        }}
+    </script>
+</body>
+</html>'''
+    return html
+
+def obtener_parametros(request):
+    try:
+        request = request.decode('utf-8')
+    except:
+        pass
+
+    lineas = request.split(' ')
+    linea_correcta = None
+    for linea in lineas:
+        if '/update?' in linea:
+            linea_correcta = linea
+            break
+
+    if not linea_correcta:
+        return {}
+    
+    query = linea_correcta.split('/update?', 1)[1]
+    parametros = {}
+    for par in query.split('&'):
+        if '=' in par:
+            clave, valor = par.split('=', 1)
+            parametros[clave] = valor
+    
+    return parametros
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 80))
+s.listen(5)
+
+print("Servidor de Truco iniciado en el puerto 80...")
+
+while True:
+    conn, addr = s.accept()
+    request = conn.recv(1024)
+    request = str(request)
+
+    parametros = obtener_parametros(request)
+
+    if 'nosotros' in parametros:
+        puntos['nosotros'] = int(parametros['nosotros'])
+    if 'ellos' in parametros:
+        puntos['ellos'] = int(parametros['ellos'])
+
+    print(f"Puntos -> Nosotros: {puntos['nosotros']} | Ellos: {puntos['ellos']}")
+
+    response = webpage()
+    conn.send(b'HTTP/1.1 200 OK\n')
+    conn.send(b'Content-Type: text/html\n')
+    conn.send(b'Connection: close\n\n')
+    conn.sendall(response)
+    conn.close()
