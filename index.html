@@ -28,6 +28,13 @@
             text-transform: lowercase;
             margin: 0;
         }
+        .meta-indicator {
+            font-size: 11px;
+            color: #94a3b8;
+            letter-spacing: 1px;
+            margin-top: 4px;
+            text-transform: lowercase;
+        }
         .board {
             display: flex;
             justify-content: center;
@@ -57,10 +64,17 @@
             font-family: "Times New Roman", Times, serif;
         }
         .btn-group {
-            display: flex;
+            display: grid;
+            grid-row: 1;
+            grid-template-columns: 1fr 1fr;
             gap: 8px;
             margin-top: 10px;
-            flex-wrap: wrap;
+            
+        }
+        .btn-subgroup {
+            row-gap: 5px;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
         }
         .btn {
@@ -72,6 +86,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: background 0.2s;
+            
         }
         .btn.add {
             background-color: #d4af37;
@@ -101,8 +116,34 @@
             text-transform: lowercase;
             letter-spacing: 1px;
         }
-        /* Modal de victoria */
-        #modal-ganador {
+        .btn-limit {
+            background-color: #d4af37;
+            border: none;
+            color: #11381b;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+        }
+        .btn-limit:hover {
+            opacity: 0.9;
+        }
+        .btn-cancel {
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #cbd5e1;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+            margin-top: 14px;
+        }
+        .modal {
             display: none;
             position: fixed;
             top: 0;
@@ -120,61 +161,102 @@
             padding: 30px;
             border-radius: 12px;
             text-align: center;
+            max-width: 300px;
         }
         .modal-content h2 {
             color: #d4af37;
-            font-size: 32px;
+            font-size: 22px;
             margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .modal-content p {
+            color: #cbd5e1;
+            font-size: 13px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
         }
     </style>
 </head>
 <body>
-    <h1>anotador de truco</h1>
+    <div>
+        <h1>anotador de truco</h1>
+        <div class="meta-indicator" id="meta-display">a 30 puntos</div>
+    </div>
     
     <div class="board">
-        <!-- NOSOTROS -->
         <div class="team">
             <div class="team-title">nosotros</div>
             <div class="score" id="score-nosotros">0</div>
             <div class="btn-group">
+                <div class="btn-subgroup">
                 <button class="btn" onclick="modificar('nosotros', -1)">-1</button>
-                <button class="btn add" onclick="modificar('nosotros', 1)">base / no se quiere</button>
-                <button class="btn add" onclick="modificar('nosotros', 2)">envido / truco</button>
-                <button class="btn add" onclick="modificar('nosotros', 3)">retruco / real envido</button>
+                <button class="btn add" onclick="modificar('nosotros', 2)">truco</button>
+                <button class="btn add" onclick="modificar('nosotros', 3)">retruco</button>
                 <button class="btn add" onclick="modificar('nosotros', 4)">vale 4</button>
+                </div>
+                <div class="btn-subgroup">
+                <button class="btn add" onclick="modificar('nosotros', 1)">+1</button>
+                <button class="btn add" onclick="modificar('nosotros', 2)">envido </button>
+                <button class="btn add" onclick="modificar('nosotros', 3)">real envido</button>
+                <button class="btn add" onclick="faltaEnvido('nosotros')">falta envido</button>
+                </div>
             </div>
-            <button class="btn falta" onclick="faltaEnvido('nosotros')">falta envido</button>
         </div>
         
-        <!-- ELLOS -->
         <div class="team">
             <div class="team-title">ellos</div>
             <div class="score" id="score-ellos">0</div>
             <div class="btn-group">
-                <button class="btn" onclick="modificar('ellos', -1)">-1</button>
-                <button class="btn add" onclick="modificar('ellos', 1)">base / no se quiere</button>
-                <button class="btn add" onclick="modificar('ellos', 2)">envido / truco</button>
-                <button class="btn add" onclick="modificar('ellos', 3)">retruco / real envido</button>
-                <button class="btn add" onclick="modificar('ellos', 4)">vale 4</button>
+                <div class="btn-subgroup">
+                <button class="btn" onclick="modificar('nosotros', -1)">-1</button>
+                <button class="btn add" onclick="modificar('nosotros', 2)">truco</button>
+                <button class="btn add" onclick="modificar('nosotros', 3)">retruco</button>
+                <button class="btn add" onclick="modificar('nosotros', 4)">vale 4</button>
+                </div>
+                <div class="btn-subgroup">
+                <button class="btn add" onclick="modificar('nosotros', 1)">+1</button>
+                <button class="btn add" onclick="modificar('nosotros', 2)">envido </button>
+                <button class="btn add" onclick="modificar('nosotros', 3)">real envido</button>
+                <button class="btn add" onclick="faltaEnvido('nosotros')">falta envido</button>
+                </div>
             </div>
-            <button class="btn falta" onclick="faltaEnvido('ellos')">falta envido</button>
         </div>
     </div>
-    
-    <button class="btn-reset" onclick="reiniciar()">juego nuevo</button>
 
-    <!-- Modal de Ganador -->
-    <div id="modal-ganador">
+    <button class="btn-reset" onclick="pedirConfirmacion()">juego nuevo</button>
+
+    <div id="modal-confirmar" class="modal">
+        <div class="modal-content">
+            <h2>Reiniciar partida</h2>
+            <p>Elegí a cuántos puntos jugar:</p>
+            <div class="modal-buttons">
+                <button class="btn-limit" onclick="confirmarReinicio(15)">a 15</button>
+                <button class="btn-limit" onclick="confirmarReinicio(30)">a 30</button>
+            </div>
+            <button class="btn-cancel" onclick="cerrarModalConfirmar()">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="modal-ganador" class="modal">
         <div class="modal-content">
             <h2 id="ganador-texto">¡Hay Ganador!</h2>
-            <button class="btn-reset" onclick="reiniciar()">Aceptar / Revancha</button>
+            <p>¿Revancha a cuántos puntos?</p>
+            <div class="modal-buttons">
+                <button class="btn-limit" onclick="confirmarReinicio(15)">a 15</button>
+                <button class="btn-limit" onclick="confirmarReinicio(30)">a 30</button>
+            </div>
         </div>
     </div>
 
     <script>
         let nos = 0;
         let ell = 0;
-        const meta = 30;
+        let meta = 30;
 
         function modificar(equipo, cantidad) {
             if (equipo === 'nosotros') {
@@ -210,11 +292,22 @@
             }
         }
 
-        function reiniciar() {
+        function pedirConfirmacion() {
+            document.getElementById('modal-confirmar').style.display = 'flex';
+        }
+
+        function cerrarModalConfirmar() {
+            document.getElementById('modal-confirmar').style.display = 'none';
+        }
+
+        function confirmarReinicio(nuevaMeta) {
+            meta = nuevaMeta;
             nos = 0;
             ell = 0;
+            document.getElementById('meta-display').innerText = 'a ' + meta + ' puntos';
             document.getElementById('score-nosotros').innerText = nos;
             document.getElementById('score-ellos').innerText = ell;
+            document.getElementById('modal-confirmar').style.display = 'none';
             document.getElementById('modal-ganador').style.display = 'none';
             enviarServidor();
         }
@@ -225,6 +318,8 @@
                 fetch(url).catch(err => console.log('Sin conexión con ESP32'));
             }
         }
+
+        window.addEventListener("load", pedirConfirmacion(30))
     </script>
 </body>
 </html>
