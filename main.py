@@ -1,9 +1,32 @@
+import socket
 from machine import Pin
+import tm1637
+
+display = tm1637.TM1637(clk=Pin(2), dio=Pin(15))
+display.brightness(4)
+
+led_nosotros = Pin(17, Pin.OUT)
+led_ellos = Pin(26, Pin.OUT)
 
 puntos = {
     "nosotros": 0,
-    "ellos": 0
+    "ellos": 0,
+    "buenas_nos": 0,
+    "buenas_ell": 0,
 }
+
+
+def actualizar_hardware():
+    nos = max(0, min(99, puntos["nosotros"]))
+    ell = max(0, min(99, puntos["ellos"]))
+
+    # Muestra "NNEE" (2 dígitos Nosotros + 2 dígitos Ellos) con los dos puntos del medio
+    texto_display = f"{nos:02d}{ell:02d}"
+    display.show(texto_display, colon=True)
+
+    led_nosotros.value(1 if puntos["buenas_nos"] else 0)
+    led_ellos.value(1 if puntos["buenas_ell"] else 0)
+
 
 def webpage():
     html = f'''<!DOCTYPE html>
@@ -36,6 +59,13 @@ def webpage():
             text-transform: lowercase;
             margin: 0;
         }}
+        .meta-indicator {{
+            font-size: 11px;
+            color: #94a3b8;
+            letter-spacing: 1px;
+            margin-top: 4px;
+            text-transform: lowercase;
+        }}
         .board {{
             display: flex;
             justify-content: center;
@@ -55,7 +85,22 @@ def webpage():
             color: #94a3b8;
             letter-spacing: 1.5px;
             text-transform: lowercase;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+        }}
+        .led {{
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #0b2412;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+            margin-bottom: 6px;
+            transition: all 0.3s ease;
+        }}
+        .led.on {{
+            background-color: #4ade80;
+            border-color: #86efac;
+            box-shadow: 0 0 8px #4ade80, 0 0 16px rgba(74, 222, 128, 0.6), inset 0 1px 2px #ffffff;
         }}
         .score {{
             font-size: 72px;
@@ -65,10 +110,16 @@ def webpage():
             font-family: "Times New Roman", Times, serif;
         }}
         .btn-group {{
-            display: flex;
+            display: grid;
+            grid-row: 1;
+            grid-template-columns: 1fr 1fr;
             gap: 8px;
             margin-top: 10px;
-            flex-wrap: wrap;
+        }}
+        .btn-subgroup {{
+            row-gap: 5px;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
         }}
         .btn {{
@@ -87,14 +138,6 @@ def webpage():
             font-weight: bold;
             border: none;
         }}
-        .btn.falta {{
-            background-color: #b8860b;
-            color: #fff;
-            font-weight: bold;
-            border: none;
-            width: 100%;
-            margin-top: 6px;
-        }}
         .btn:hover {{
             opacity: 0.9;
         }}
@@ -109,14 +152,41 @@ def webpage():
             text-transform: lowercase;
             letter-spacing: 1px;
         }}
-        #modal-ganador {{
+        .btn-limit {{
+            background-color: #d4af37;
+            border: none;
+            color: #11381b;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+        }}
+        .btn-limit:hover {{
+            opacity: 0.9;
+        }}
+        .btn-cancel {{
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #cbd5e1;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+            margin-top: 14px;
+        }}
+        .modal {{
             display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.75);
             justify-content: center;
             align-items: center;
             z-index: 10;
@@ -127,61 +197,104 @@ def webpage():
             padding: 30px;
             border-radius: 12px;
             text-align: center;
+            max-width: 300px;
         }}
         .modal-content h2 {{
             color: #d4af37;
-            font-size: 32px;
+            font-size: 22px;
             margin-top: 0;
+            margin-bottom: 8px;
+        }}
+        .modal-content p {{
+            color: #cbd5e1;
+            font-size: 13px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }}
+        .modal-buttons {{
+            display: flex;
+            gap: 12px;
+            justify-content: center;
         }}
     </style>
 </head>
 <body>
-    <h1>anotador de truco</h1>
-    
-    <div class="board">
-        <!-- NOSOTROS -->
-        <div class="team">
-            <div class="team-title">nosotros</div>
-            <div class="score" id="score-nosotros">0</div>
-            <div class="btn-group">
-                <button class="btn" onclick="modificar('nosotros', -1)">-1</button>
-                <button class="btn add" onclick="modificar('nosotros', 1)">base / no se quiere</button>
-                <button class="btn add" onclick="modificar('nosotros', 2)">envido / truco</button>
-                <button class="btn add" onclick="modificar('nosotros', 3)">retruco / real envido</button>
-                <button class="btn add" onclick="modificar('nosotros', 4)">vale 4</button>
-            </div>
-            <button class="btn falta" onclick="faltaEnvido('nosotros')">falta envido</button>
-        </div>
-        
-        <!-- ELLOS -->
-        <div class="team">
-            <div class="team-title">ellos</div>
-            <div class="score" id="score-ellos">0</div>
-            <div class="btn-group">
-                <button class="btn" onclick="modificar('ellos', -1)">-1</button>
-                <button class="btn add" onclick="modificar('ellos', 1)">base / no se quiere</button>
-                <button class="btn add" onclick="modificar('ellos', 2)">envido / truco</button>
-                <button class="btn add" onclick="modificar('ellos', 3)">retruco / real envido</button>
-                <button class="btn add" onclick="modificar('ellos', 4)">vale 4</button>
-            </div>
-            <button class="btn falta" onclick="faltaEnvido('ellos')">falta envido</button>
-        </div>
+    <div>
+        <h1>anotador de truco</h1>
+        <div class="meta-indicator" id="meta-display">a 30 puntos</div>
     </div>
     
-    <button class="btn-reset" onclick="reiniciar()">juego nuevo</button>
+    <div class="board">
+        <div class="team">
+            <div class="team-title">nosotros</div>
+            <div class="led" id="led-nosotros" title="Indicador de buenas"></div>
+            <div class="score" id="score-nosotros">0</div>
+            <div class="btn-group">
+                <div class="btn-subgroup">
+                    <button class="btn" onclick="modificar('nosotros', -1)">-1</button>
+                    <button class="btn add" onclick="modificar('nosotros', 2)">truco</button>
+                    <button class="btn add" onclick="modificar('nosotros', 3)">retruco</button>
+                    <button class="btn add" onclick="modificar('nosotros', 4)">vale 4</button>
+                </div>
+                <div class="btn-subgroup">
+                    <button class="btn add" onclick="modificar('nosotros', 1)">+1</button>
+                    <button class="btn add" onclick="modificar('nosotros', 2)">envido</button>
+                    <button class="btn add" onclick="modificar('nosotros', 3)">real envido</button>
+                    <button class="btn add" onclick="faltaEnvido('nosotros')">falta envido</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="team">
+            <div class="team-title">ellos</div>
+            <div class="led" id="led-ellos" title="Indicador de buenas"></div>
+            <div class="score" id="score-ellos">0</div>
+            <div class="btn-group">
+                <div class="btn-subgroup">
+                    <button class="btn" onclick="modificar('ellos', -1)">-1</button>
+                    <button class="btn add" onclick="modificar('ellos', 2)">truco</button>
+                    <button class="btn add" onclick="modificar('ellos', 3)">retruco</button>
+                    <button class="btn add" onclick="modificar('ellos', 4)">vale 4</button>
+                </div>
+                <div class="btn-subgroup">
+                    <button class="btn add" onclick="modificar('ellos', 1)">+1</button>
+                    <button class="btn add" onclick="modificar('ellos', 2)">envido</button>
+                    <button class="btn add" onclick="modificar('ellos', 3)">real envido</button>
+                    <button class="btn add" onclick="faltaEnvido('ellos')">falta envido</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Modal de Ganador -->
-    <div id="modal-ganador">
+    <button class="btn-reset" onclick="pedirConfirmacion(false)">juego nuevo</button>
+
+    <div id="modal-confirmar" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-titulo">Nueva partida</h2>
+            <p>Elegi a cuantos puntos jugar:</p>
+            <div class="modal-buttons">
+                <button class="btn-limit" onclick="confirmarReinicio(15)">a 15</button>
+                <button class="btn-limit" onclick="confirmarReinicio(30)">a 30</button>
+            </div>
+            <button id="btn-cancelar-modal" class="btn-cancel" onclick="cerrarModalConfirmar()">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="modal-ganador" class="modal">
         <div class="modal-content">
             <h2 id="ganador-texto">¡Hay Ganador!</h2>
-            <button class="btn-reset" onclick="reiniciar()">Aceptar / Revancha</button>
+            <p>¿Revancha a cuantos puntos?</p>
+            <div class="modal-buttons">
+                <button class="btn-limit" onclick="confirmarReinicio(15)">a 15</button>
+                <button class="btn-limit" onclick="confirmarReinicio(30)">a 30</button>
+            </div>
         </div>
     </div>
 
     <script>
         let nos = 0;
         let ell = 0;
-        const meta = 30;
+        let meta = 30;
 
         function modificar(equipo, cantidad) {{
             if (equipo === 'nosotros') {{
@@ -191,6 +304,7 @@ def webpage():
                 ell = Math.min(meta, Math.max(0, ell + cantidad));
                 document.getElementById('score-ellos').innerText = ell;
             }}
+            verificarBuenasYMalas();
             verificarGanador();
             enviarServidor();
         }}
@@ -203,47 +317,84 @@ def webpage():
                 ell = meta;
                 document.getElementById('score-ellos').innerText = ell;
             }}
+            verificarBuenasYMalas();
             verificarGanador();
             enviarServidor();
         }}
 
+        function verificarBuenasYMalas() {{
+            const mitad = meta / 2;
+
+            const ledNos = document.getElementById('led-nosotros');
+            ledNos.classList.toggle('on', nos >= mitad);
+
+            const ledEllos = document.getElementById('led-ellos');
+            ledEllos.classList.toggle('on', ell >= mitad);
+        }}
+
         function verificarGanador() {{
             if (nos >= meta) {{
-                document.getElementById('ganador-texto').innerText = "¡Ganó NOSOTROS!";
+                document.getElementById('ganador-texto').innerText = "¡Gano NOSOTROS!";
                 document.getElementById('modal-ganador').style.display = 'flex';
             }} else if (ell >= meta) {{
-                document.getElementById('ganador-texto').innerText = "¡Ganó ELLOS!";
+                document.getElementById('ganador-texto').innerText = "¡Gano ELLOS!";
                 document.getElementById('modal-ganador').style.display = 'flex';
             }}
         }}
 
-        function reiniciar() {{
+        function pedirConfirmacion(esInicio = false) {{
+            const titulo = document.getElementById('modal-titulo');
+            const btnCancelar = document.getElementById('btn-cancelar-modal');
+
+            if (esInicio) {{
+                titulo.innerText = "Nueva partida";
+                btnCancelar.style.display = "none";
+            }} else {{
+                titulo.innerText = "Reiniciar partida";
+                btnCancelar.style.display = "inline-block";
+            }}
+
+            document.getElementById('modal-confirmar').style.display = 'flex';
+        }}
+
+        function cerrarModalConfirmar() {{
+            document.getElementById('modal-confirmar').style.display = 'none';
+        }}
+
+        function confirmarReinicio(nuevaMeta) {{
+            meta = nuevaMeta;
             nos = 0;
             ell = 0;
+            document.getElementById('meta-display').innerText = 'a ' + meta + ' puntos';
             document.getElementById('score-nosotros').innerText = nos;
             document.getElementById('score-ellos').innerText = ell;
+            verificarBuenasYMalas();
+            document.getElementById('modal-confirmar').style.display = 'none';
             document.getElementById('modal-ganador').style.display = 'none';
             enviarServidor();
         }}
 
         function enviarServidor() {{
             if (window.location.protocol.startsWith('http')) {{
-                const url = '/update?nosotros=' + nos + '&ellos=' + ell;
-                fetch(url).catch(err => console.log('Sin conexión con ESP32'));
+                const buenasNos = nos >= (meta / 2) ? 1 : 0;
+                const buenasEll = ell >= (meta / 2) ? 1 : 0;
+                const url = `/update?nosotros=${{nos}}&ellos=${{ell}}&buenasNos=${{buenasNos}}&buenasEll=${{buenasEll}}`;
+                fetch(url).catch(err => console.log('Sin conexion con ESP32'));
             }}
         }}
+
+        window.addEventListener("DOMContentLoaded", () => {{
+            pedirConfirmacion(true);
+            verificarBuenasYMalas();
+        }});
     </script>
 </body>
 </html>'''
     return html
 
-def obtener_parametros(request):
-    try:
-        request = request.decode('utf-8')
-    except:
-        pass
 
-    lineas = request.split(' ')
+def obtener_parametros(request_text):
+    lineas = request_text.split(' ')
     linea_correcta = None
     for linea in lineas:
         if '/update?' in linea:
@@ -252,17 +403,21 @@ def obtener_parametros(request):
 
     if not linea_correcta:
         return {}
-    
+
     query = linea_correcta.split('/update?', 1)[1]
     parametros = {}
     for par in query.split('&'):
         if '=' in par:
             clave, valor = par.split('=', 1)
             parametros[clave] = valor
-    
+
     return parametros
 
+
+actualizar_hardware()
+
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(('', 80))
 s.listen(5)
 
@@ -270,21 +425,34 @@ print("Servidor de Truco iniciado en el puerto 80...")
 
 while True:
     conn, addr = s.accept()
-    request = conn.recv(1024)
-    request = str(request)
+    try:
+        raw_request = conn.recv(1024)
+        request_text = raw_request.decode('utf-8', 'ignore')
 
-    parametros = obtener_parametros(request)
+        if '/update?' in request_text:
+            parametros = obtener_parametros(request_text)
 
-    if 'nosotros' in parametros:
-        puntos['nosotros'] = int(parametros['nosotros'])
-    if 'ellos' in parametros:
-        puntos['ellos'] = int(parametros['ellos'])
+            if 'nosotros' in parametros:
+                puntos['nosotros'] = int(parametros['nosotros'])
+            if 'ellos' in parametros:
+                puntos['ellos'] = int(parametros['ellos'])
+            if 'buenasNos' in parametros:
+                puntos['buenas_nos'] = int(parametros['buenasNos'])
+            if 'buenasEll' in parametros:
+                puntos['buenas_ell'] = int(parametros['buenasEll'])
 
-    print(f"Puntos -> Nosotros: {puntos['nosotros']} | Ellos: {puntos['ellos']}")
+            actualizar_hardware()
+            print(
+                f"Puntos -> Nosotros: {puntos['nosotros']} (buenas={puntos['buenas_nos']}) | "
+                f"Ellos: {puntos['ellos']} (buenas={puntos['buenas_ell']})"
+            )
 
-    response = webpage()
-    conn.send(b'HTTP/1.1 200 OK\n')
-    conn.send(b'Content-Type: text/html\n')
-    conn.send(b'Connection: close\n\n')
-    conn.sendall(response)
-    conn.close()
+            conn.send(b'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nOK')
+        else:
+            response = webpage().encode('utf-8')
+            conn.send(b'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n')
+            conn.sendall(response)
+    except Exception as e:
+        print("Error en conexion:", e)
+    finally:
+        conn.close()
